@@ -42,19 +42,22 @@ local function validateKey(key)
     return false, "Connection error - Unable to reach validation server", nil
 end
 
--- Function to load your actual script
-local function loadScript(loadstring(game:HttpGet("https://raw.githubusercontent.com/Cloud-Hub-ui/Cloud-Hub/main/Aj.lua"))())
-    print("✅ Script loaded successfully!")
+-- Function to load your actual script from GitHub
+local function loadScript()
+    print("✅ Key validated! Loading script...")
     
-    -- PUT YOUR ACTUAL SCRIPT CODE HERE
-    -- Example:
-    print("Your script is now running!")
+    -- Replace this URL with your GitHub raw script URL
+    local SCRIPT_URL = "https://raw.githubusercontent.com/Cloud-Hub-ui/Cloud-Hub/main/Aj-loader.lua"
     
-    -- Your game modifications, exploits, or features go here
-    -- For example:
-    -- game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = 100
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(SCRIPT_URL))()
+    end)
     
-    print("Script execution complete!")
+    if success then
+        print("✅ Script loaded and executed successfully!")
+    else
+        warn("❌ Failed to load script:", result)
+    end
 end
 
 -- Create UI
